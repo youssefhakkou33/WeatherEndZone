@@ -9,12 +9,36 @@ class WeatherApp {
         this.NEWS_BASE_URL = 'https://newsapi.org/v2';
         
         // NewsAPI key (optional - app works with mock data if not provided)
-        this.NEWS_API_KEY = '0a6cabfd23d54a0bb9f30efb8919e69c'; // Get from https://newsapi.org/ (optional)
+        // For GitHub Pages deployment, we'll use environment variables or prompt user
+        this.NEWS_API_KEY = this.getNewsApiKey();
         
         // App state
         this.cities = JSON.parse(localStorage.getItem('weatherapp_cities')) || [];
         
         this.init();
+    }
+
+    getNewsApiKey() {
+        // Check if API key is stored in localStorage
+        let apiKey = localStorage.getItem('newsapi_key');
+        
+        // If not found and no key set, ask user (only once)
+        if (!apiKey && !localStorage.getItem('newsapi_prompted')) {
+            const userKey = prompt(
+                'Enter your NewsAPI key for real news (optional):\n\n' +
+                'Get free key at: https://newsapi.org/\n' +
+                'Leave empty to use mock news data'
+            );
+            
+            if (userKey && userKey.trim()) {
+                apiKey = userKey.trim();
+                localStorage.setItem('newsapi_key', apiKey);
+            }
+            
+            localStorage.setItem('newsapi_prompted', 'true');
+        }
+        
+        return apiKey || '';
     }
 
     init() {
@@ -27,6 +51,27 @@ class WeatherApp {
     }
 
     bindEvents() {
+        // Settings modal
+        document.getElementById('settings-btn').addEventListener('click', () => {
+            this.openSettingsModal();
+        });
+
+        document.getElementById('close-settings-modal').addEventListener('click', this.closeSettingsModal);
+        document.getElementById('cancel-settings').addEventListener('click', this.closeSettingsModal);
+        
+        document.getElementById('save-settings').addEventListener('click', () => {
+            this.saveSettings();
+        });
+
+        document.getElementById('clear-settings').addEventListener('click', () => {
+            this.clearSettings();
+        });
+
+        document.getElementById('show-api-key').addEventListener('change', (e) => {
+            const input = document.getElementById('newsapi-input');
+            input.type = e.target.checked ? 'text' : 'password';
+        });
+
         // Add city modal
         document.getElementById('add-city-btn').addEventListener('click', () => {
             document.getElementById('add-city-modal').classList.remove('hidden');
@@ -45,6 +90,12 @@ class WeatherApp {
             }
         });
 
+        document.getElementById('settings-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'settings-modal') {
+                this.closeSettingsModal();
+            }
+        });
+
         // Add city form
         document.getElementById('add-city-form').addEventListener('submit', (e) => {
             e.preventDefault();
@@ -56,10 +107,11 @@ class WeatherApp {
             this.updateAllData();
         });
 
-        // Escape key to close modal
+        // Escape key to close modals
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.closeModal();
+                this.closeSettingsModal();
             }
         });
     }
@@ -68,6 +120,57 @@ class WeatherApp {
         document.getElementById('add-city-modal').classList.add('hidden');
         document.getElementById('add-city-modal').classList.remove('flex');
         document.getElementById('city-input').value = '';
+    }
+
+    openSettingsModal() {
+        const modal = document.getElementById('settings-modal');
+        const input = document.getElementById('newsapi-input');
+        
+        // Load current API key
+        const currentKey = localStorage.getItem('newsapi_key') || '';
+        input.value = currentKey;
+        
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        input.focus();
+    }
+
+    closeSettingsModal() {
+        document.getElementById('settings-modal').classList.add('hidden');
+        document.getElementById('settings-modal').classList.remove('flex');
+        document.getElementById('show-api-key').checked = false;
+        document.getElementById('newsapi-input').type = 'password';
+    }
+
+    saveSettings() {
+        const apiKey = document.getElementById('newsapi-input').value.trim();
+        
+        if (apiKey) {
+            localStorage.setItem('newsapi_key', apiKey);
+            this.NEWS_API_KEY = apiKey;
+            alert('Settings saved! Your NewsAPI key has been updated.');
+        } else {
+            localStorage.removeItem('newsapi_key');
+            this.NEWS_API_KEY = '';
+            alert('Settings saved! NewsAPI key removed - will use mock news data.');
+        }
+        
+        this.closeSettingsModal();
+        
+        // Refresh data to use new API key
+        if (this.cities.length > 0) {
+            this.updateAllData();
+        }
+    }
+
+    clearSettings() {
+        if (confirm('Are you sure you want to clear all settings? This will remove your NewsAPI key.')) {
+            localStorage.removeItem('newsapi_key');
+            localStorage.removeItem('newsapi_prompted');
+            this.NEWS_API_KEY = '';
+            document.getElementById('newsapi-input').value = '';
+            alert('Settings cleared! Will use mock news data.');
+        }
     }
 
     async addCity() {
@@ -173,8 +276,11 @@ class WeatherApp {
 
     async fetchNewsData(cityName, countryCode) {
         try {
+            // Get current API key (might have been updated in settings)
+            const currentApiKey = localStorage.getItem('newsapi_key') || this.NEWS_API_KEY;
+            
             // Try to fetch real news data from NewsAPI
-            if (this.NEWS_API_KEY && this.NEWS_API_KEY !== 'YOUR_NEWS_API_KEY') {
+            if (currentApiKey && currentApiKey !== 'YOUR_NEWS_API_KEY') {
                 const queries = [
                     `${cityName}`,
                     `${countryCode}`,
@@ -185,7 +291,7 @@ class WeatherApp {
                 for (const query of queries) {
                     try {
                         const response = await fetch(
-                            `${this.NEWS_BASE_URL}/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&pageSize=5&apiKey=${this.NEWS_API_KEY}`
+                            `${this.NEWS_BASE_URL}/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&pageSize=5&apiKey=${currentApiKey}`
                         );
                         
                         if (response.ok) {
