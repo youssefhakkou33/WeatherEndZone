@@ -1,0 +1,39 @@
+{
+  "name": "weather-end-zone",
+  "version": "1.0.0",
+  "description": "A comprehensive weather, time zone, and news website",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "serve": "npx serve .",
+    "setup": "python3 setup.py",
+    "dev": "npx live-server --port=8000 --open=/index.html"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/youssefhakkou33/WeatherEndZone.git"
+  },
+  "keywords": [
+    "weather",
+    "news",
+    "timezone",
+    "api",
+    "javascript",
+    "tailwind",
+    "responsive",
+    "pwa"
+  ],
+  "author": "Youssef Hakkou",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/youssefhakkou33/WeatherEndZone/issues"
+  },
+  "homepage": "https://github.com/youssefhakkou33/WeatherEndZone#readme",
+  "devDependencies": {
+    "live-server": "^1.2.2",
+    "serve": "^14.2.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
