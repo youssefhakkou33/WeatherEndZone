@@ -8,37 +8,13 @@ class WeatherApp {
         this.TIMEZONE_BASE_URL = 'https://worldtimeapi.org/api/timezone';
         this.NEWS_BASE_URL = 'https://newsapi.org/v2';
         
-        // NewsAPI key (optional - app works with mock data if not provided)
-        // For GitHub Pages deployment, we'll use environment variables or prompt user
-        this.NEWS_API_KEY = this.getNewsApiKey();
+        // NewsAPI key - your actual API key
+        this.NEWS_API_KEY = '0a6cabfd23d54a0bb9f30efb8919e69c';
         
         // App state
         this.cities = JSON.parse(localStorage.getItem('weatherapp_cities')) || [];
         
         this.init();
-    }
-
-    getNewsApiKey() {
-        // Check if API key is stored in localStorage
-        let apiKey = localStorage.getItem('newsapi_key');
-        
-        // If not found and no key set, ask user (only once)
-        if (!apiKey && !localStorage.getItem('newsapi_prompted')) {
-            const userKey = prompt(
-                'Enter your NewsAPI key for real news (optional):\n\n' +
-                'Get free key at: https://newsapi.org/\n' +
-                'Leave empty to use mock news data'
-            );
-            
-            if (userKey && userKey.trim()) {
-                apiKey = userKey.trim();
-                localStorage.setItem('newsapi_key', apiKey);
-            }
-            
-            localStorage.setItem('newsapi_prompted', 'true');
-        }
-        
-        return apiKey || '';
     }
 
     init() {
@@ -276,11 +252,8 @@ class WeatherApp {
 
     async fetchNewsData(cityName, countryCode) {
         try {
-            // Get current API key (might have been updated in settings)
-            const currentApiKey = localStorage.getItem('newsapi_key') || this.NEWS_API_KEY;
-            
-            // Try to fetch real news data from NewsAPI
-            if (currentApiKey && currentApiKey !== 'YOUR_NEWS_API_KEY') {
+            // Try to fetch real news data from NewsAPI using hardcoded key
+            if (this.NEWS_API_KEY) {
                 const queries = [
                     `${cityName}`,
                     `${countryCode}`,
@@ -291,7 +264,7 @@ class WeatherApp {
                 for (const query of queries) {
                     try {
                         const response = await fetch(
-                            `${this.NEWS_BASE_URL}/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&pageSize=5&apiKey=${currentApiKey}`
+                            `${this.NEWS_BASE_URL}/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&pageSize=5&apiKey=${this.NEWS_API_KEY}`
                         );
                         
                         if (response.ok) {
