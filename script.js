@@ -73,6 +73,37 @@ class WeatherApp {
         // Refresh button
         document.getElementById('refresh-btn').addEventListener('click', () => {
             this.updateAllData();
+            // Add visual feedback
+            const btn = document.getElementById('refresh-btn');
+            const icon = btn.querySelector('i');
+            icon.style.animation = 'spin 1s linear';
+            setTimeout(() => {
+                icon.style.animation = '';
+            }, 1000);
+        });
+
+        // Add touch feedback for mobile
+        this.addTouchFeedback();
+
+        // Close modals on backdrop click
+        document.getElementById('add-city-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'add-city-modal') {
+                this.closeModal();
+            }
+        });
+
+        document.getElementById('settings-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'settings-modal') {
+                this.closeSettingsModal();
+            }
+        });
+
+        // Prevent form submission on enter in city input
+        document.getElementById('city-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.addCity();
+            }
         });
 
         // Escape key to close modals
@@ -88,6 +119,23 @@ class WeatherApp {
         document.getElementById('add-city-modal').classList.add('hidden');
         document.getElementById('add-city-modal').classList.remove('flex');
         document.getElementById('city-input').value = '';
+    }
+
+    addTouchFeedback() {
+        // Add touch feedback for buttons
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(button => {
+            button.addEventListener('touchstart', () => {
+                button.style.transform = 'scale(0.95)';
+                button.style.transition = 'transform 0.1s ease';
+            });
+            
+            button.addEventListener('touchend', () => {
+                setTimeout(() => {
+                    button.style.transform = '';
+                }, 150);
+            });
+        });
     }
 
     openSettingsModal() {
@@ -254,25 +302,40 @@ class WeatherApp {
 
     renderCities() {
         const container = document.getElementById('cities-container');
-        const noCitiesMessage = document.getElementById('no-cities');
+        const noCitiesDiv = document.getElementById('no-cities');
         
         if (this.cities.length === 0) {
-            container.innerHTML = '';
-            noCitiesMessage.classList.remove('hidden');
+            container.style.display = 'none';
+            noCitiesDiv.style.display = 'block';
             return;
         }
         
-        noCitiesMessage.classList.add('hidden');
-        container.innerHTML = this.cities.map(city => this.renderCityCard(city)).join('');
+        container.style.display = 'grid';
+        noCitiesDiv.style.display = 'none';
+        
+        // Add staggered animation
+        container.innerHTML = this.cities.map((city, index) => {
+            const card = this.renderCityCard(city);
+            return `<div style="animation-delay: ${index * 0.1}s">${card}</div>`;
+        }).join('');
+        
+        // Add intersection observer for scroll animations
+        this.addScrollAnimations();
     }
 
     renderCityCard(city) {
         if (!city.weather) {
             return `
-                <div class="bg-white rounded-xl shadow-lg p-6 fade-in">
+                <div class="glass-effect rounded-2xl p-6 bounce-in hover-lift shadow-xl">
                     <div class="text-center">
-                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                        <p class="mt-2 text-gray-600">Loading ${city.name}...</p>
+                        <div class="relative mb-4">
+                            <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 mx-auto"></div>
+                            <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 mx-auto absolute inset-0"></div>
+                        </div>
+                        <p class="text-gray-600 font-medium">Loading ${city.name}...</p>
+                        <div class="mt-2 h-1 bg-gray-200 rounded-full overflow-hidden">
+                            <div class="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-pulse"></div>
+                        </div>
                     </div>
                 </div>
             `;
@@ -285,80 +348,95 @@ class WeatherApp {
         const feelsLike = Math.round(current.apparent_temperature);
         
         return `
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden fade-in">
+            <div class="glass-effect rounded-2xl overflow-hidden fade-in hover-lift shadow-xl border border-white/20">
                 <!-- City Header -->
-                <div class="gradient-blue text-white p-6">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <h2 class="text-xl font-bold">${city.name}</h2>
-                            <p class="text-blue-100">${city.state ? city.state + ', ' : ''}${city.country}</p>
-                            <p class="text-blue-100 text-sm mt-1">${currentTime}</p>
+                <div class="gradient-animated text-white p-6 relative overflow-hidden">
+                    <div class="absolute inset-0 bg-black/10"></div>
+                    <div class="relative z-10">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex-1">
+                                <h2 class="text-xl md:text-2xl font-bold mb-1">${city.name}</h2>
+                                <p class="text-white/90 text-sm md:text-base">${city.state ? city.state + ', ' : ''}${city.country}</p>
+                                <div class="flex items-center space-x-2 mt-2">
+                                    <i class="fas fa-clock text-white/80 text-sm"></i>
+                                    <p class="text-white/90 text-sm font-medium">${currentTime}</p>
+                                </div>
+                            </div>
+                            <button onclick="app.removeCity(${city.id})" class="text-white/80 hover:text-red-300 transition-all duration-200 hover:bg-white/10 rounded-full p-2 hover:scale-110">
+                                <i class="fas fa-times text-lg"></i>
+                            </button>
                         </div>
-                        <button onclick="app.removeCity(${city.id})" class="text-white hover:text-red-200 transition-colors">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-4">
+                                <div class="text-5xl md:text-6xl weather-icon">${weatherIcon}</div>
+                                <div>
+                                    <div class="text-3xl md:text-4xl font-bold">${temp}°C</div>
+                                    <div class="text-sm text-white/80">Feels like ${feelsLike}°C</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-lg font-semibold capitalize mb-1">
+                                    ${this.getWeatherDescription(current.weather_code)}
+                                </div>
+                                <div class="text-sm text-white/80">
+                                    <i class="fas fa-tint mr-1"></i>${current.relative_humidity_2m}% humidity
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Weather Section -->
                 <div class="p-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center space-x-4">
-                            <div class="text-5xl">${weatherIcon}</div>
-                            <div>
-                                <div class="text-3xl font-bold text-gray-800">${temp}°C</div>
-                                <div class="text-sm text-gray-600">Feels like ${feelsLike}°C</div>
+                    <!-- Weather Details Grid -->
+                    <div class="grid grid-cols-2 gap-3 md:gap-4 mb-6">
+                        <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
+                            <div class="flex items-center space-x-3 mb-2">
+                                <div class="bg-blue-500 rounded-full p-2">
+                                    <i class="fas fa-wind text-white text-sm"></i>
+                                </div>
+                                <span class="text-sm font-semibold text-gray-700">Wind Speed</span>
                             </div>
+                            <div class="text-xl font-bold text-gray-800">${current.wind_speed_10m} km/h</div>
                         </div>
-                        <div class="text-right">
-                            <div class="text-lg font-semibold text-gray-800 capitalize">
-                                ${this.getWeatherDescription(current.weather_code)}
+                        <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
+                            <div class="flex items-center space-x-3 mb-2">
+                                <div class="bg-purple-500 rounded-full p-2">
+                                    <i class="fas fa-cloud text-white text-sm"></i>
+                                </div>
+                                <span class="text-sm font-semibold text-gray-700">Cloud Cover</span>
                             </div>
-                            <div class="text-sm text-gray-600">
-                                ${current.relative_humidity_2m}% humidity
-                            </div>
+                            <div class="text-xl font-bold text-gray-800">${current.cloud_cover}%</div>
                         </div>
-                    </div>
-
-                    <!-- Weather Details -->
-                    <div class="grid grid-cols-2 gap-4 mb-6">
-                        <div class="bg-gray-50 rounded-lg p-3">
-                            <div class="flex items-center space-x-2">
-                                <i class="fas fa-wind text-blue-500"></i>
-                                <span class="text-sm font-medium">Wind</span>
+                        <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
+                            <div class="flex items-center space-x-3 mb-2">
+                                <div class="bg-green-500 rounded-full p-2">
+                                    <i class="fas fa-thermometer-half text-white text-sm"></i>
+                                </div>
+                                <span class="text-sm font-semibold text-gray-700">Pressure</span>
                             </div>
-                            <div class="text-lg font-semibold">${current.wind_speed_10m} km/h</div>
+                            <div class="text-xl font-bold text-gray-800">${Math.round(current.pressure_msl)} hPa</div>
                         </div>
-                        <div class="bg-gray-50 rounded-lg p-3">
-                            <div class="flex items-center space-x-2">
-                                <i class="fas fa-cloud text-blue-500"></i>
-                                <span class="text-sm font-medium">Cloud Cover</span>
+                        <div class="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
+                            <div class="flex items-center space-x-3 mb-2">
+                                <div class="bg-orange-500 rounded-full p-2">
+                                    <i class="fas fa-eye text-white text-sm"></i>
+                                </div>
+                                <span class="text-sm font-semibold text-gray-700">Wind Gusts</span>
                             </div>
-                            <div class="text-lg font-semibold">${current.cloud_cover}%</div>
-                        </div>
-                        <div class="bg-gray-50 rounded-lg p-3">
-                            <div class="flex items-center space-x-2">
-                                <i class="fas fa-thermometer-half text-red-500"></i>
-                                <span class="text-sm font-medium">Pressure</span>
-                            </div>
-                            <div class="text-lg font-semibold">${Math.round(current.pressure_msl)} hPa</div>
-                        </div>
-                        <div class="bg-gray-50 rounded-lg p-3">
-                            <div class="flex items-center space-x-2">
-                                <i class="fas fa-eye text-blue-500"></i>
-                                <span class="text-sm font-medium">Wind Gusts</span>
-                            </div>
-                            <div class="text-lg font-semibold">${current.wind_gusts_10m} km/h</div>
+                            <div class="text-xl font-bold text-gray-800">${current.wind_gusts_10m} km/h</div>
                         </div>
                     </div>
 
                     <!-- 7-Day Forecast -->
-                    <div class="mb-6">
-                        <h3 class="text-lg font-semibold mb-3 flex items-center">
-                            <i class="fas fa-calendar-alt text-blue-500 mr-2"></i>
+                    <div class="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 md:p-6">
+                        <h3 class="text-lg md:text-xl font-bold mb-4 flex items-center text-gray-800">
+                            <div class="bg-blue-500 rounded-full p-2 mr-3">
+                                <i class="fas fa-calendar-alt text-white text-sm"></i>
+                            </div>
                             7-Day Forecast
                         </h3>
-                        <div class="space-y-2">
+                        <div class="space-y-3 max-h-80 overflow-y-auto scrollbar-thin">
                             ${this.renderForecast(city.weather)}
                         </div>
                     </div>
@@ -368,30 +446,78 @@ class WeatherApp {
     }
 
     renderForecast(weatherData) {
-        if (!weatherData || !weatherData.daily) return '<p class="text-gray-500">Forecast not available</p>';
+        if (!weatherData || !weatherData.daily) return '<p class="text-gray-500 text-center py-4">Forecast not available</p>';
 
         const daily = weatherData.daily;
         
         return daily.time.slice(0, 7).map((date, index) => {
             const dayDate = new Date(date);
             const dayName = dayDate.toLocaleDateString('en', { weekday: 'short' });
+            const monthDay = dayDate.toLocaleDateString('en', { month: 'short', day: 'numeric' });
             const maxTemp = Math.round(daily.temperature_2m_max[index]);
             const minTemp = Math.round(daily.temperature_2m_min[index]);
             const weatherCode = daily.weather_code[index];
-            const icon = this.getWeatherIcon(weatherCode, 1); // Assume day for daily forecast
+            const icon = this.getWeatherIcon(weatherCode, 1);
             const description = this.getWeatherDescription(weatherCode);
             
+            const isToday = index === 0;
+            const cardClasses = isToday ? 
+                'bg-gradient-to-r from-blue-500 to-purple-600 text-white' : 
+                'bg-white hover:bg-gray-50';
+            
             return `
-                <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-                    <span class="font-medium text-gray-700 w-12">${dayName}</span>
-                    <span class="text-xl">${icon}</span>
-                    <span class="text-gray-600 capitalize flex-1 text-center text-sm">
-                        ${description}
-                    </span>
-                    <span class="font-semibold text-gray-800">${maxTemp}°/${minTemp}°</span>
+                <div class="${cardClasses} rounded-xl p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 border border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <div class="font-bold text-sm md:text-base">
+                                ${isToday ? 'Today' : dayName}
+                            </div>
+                            <div class="text-xs ${isToday ? 'text-white/80' : 'text-gray-500'} mt-1">
+                                ${monthDay}
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3 flex-1 justify-center">
+                            <span class="text-2xl weather-icon">${icon}</span>
+                            <div class="text-center flex-1">
+                                <div class="text-xs ${isToday ? 'text-white/90' : 'text-gray-600'} capitalize leading-tight">
+                                    ${description}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-right flex-1">
+                            <div class="font-bold text-lg">
+                                <span class="${isToday ? 'text-white' : 'text-gray-800'}">${maxTemp}°</span>
+                                <span class="mx-1 ${isToday ? 'text-white/60' : 'text-gray-400'}">/</span>
+                                <span class="${isToday ? 'text-white/80' : 'text-gray-500'} text-base">${minTemp}°</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             `;
         }).join('');
+    }
+
+    addScrollAnimations() {
+        // Intersection Observer for scroll animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        });
+
+        // Observe all city cards
+        document.querySelectorAll('#cities-container > div').forEach(card => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(30px)';
+            card.style.transition = 'all 0.6s ease-out';
+            observer.observe(card);
+        });
     }
 
     getWeatherIcon(weatherCode, isDay = 1) {
@@ -527,15 +653,29 @@ class WeatherApp {
         localStorage.setItem('weatherapp_cities', JSON.stringify(this.cities));
     }
 
-    showLoading(show) {
+    showLoading() {
         const loading = document.getElementById('loading');
-        if (show) {
-            loading.classList.remove('hidden');
-            loading.classList.add('flex');
-        } else {
+        loading.classList.remove('hidden');
+        loading.classList.add('flex');
+        
+        // Add pulse animation to the loading screen
+        setTimeout(() => {
+            const loadingDiv = loading.querySelector('div');
+            if (loadingDiv) {
+                loadingDiv.style.animation = 'pulse 2s ease-in-out infinite';
+            }
+        }, 100);
+    }
+
+    hideLoading() {
+        const loading = document.getElementById('loading');
+        // Fade out animation
+        loading.style.opacity = '0';
+        setTimeout(() => {
             loading.classList.add('hidden');
             loading.classList.remove('flex');
-        }
+            loading.style.opacity = '1';
+        }, 300);
     }
 }
 
