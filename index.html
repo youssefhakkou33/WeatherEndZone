@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WeatherEndZone - Weather, Time & News Hub</title>
+    <title>WeatherEndZone - Weather & Time Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="styles.css" rel="stylesheet">
@@ -110,19 +110,9 @@
                 </button>
             </div>
             <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">NewsAPI Key (Optional)</label>
-                    <input 
-                        type="password" 
-                        id="newsapi-input" 
-                        placeholder="Enter NewsAPI key for real news" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                    <p class="text-xs text-gray-500 mt-1">Get free key at <a href="https://newsapi.org/" target="_blank" class="text-blue-500">newsapi.org</a></p>
-                </div>
                 <div class="flex items-center space-x-2">
                     <input type="checkbox" id="show-api-key" class="rounded">
-                    <label for="show-api-key" class="text-sm text-gray-700">Show API key</label>
+                    <label for="show-api-key" class="text-sm text-gray-700">Show advanced options</label>
                 </div>
                 <div class="mt-6 flex space-x-2">
                     <button id="save-settings" class="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg transition-colors">
@@ -158,7 +148,7 @@
         <div id="no-cities" class="text-center py-20">
             <i class="fas fa-map-marker-alt text-6xl text-gray-400 mb-4"></i>
             <h3 class="text-xl font-semibold text-gray-600 mb-2">No Cities Added Yet</h3>
-            <p class="text-gray-500 mb-6">Add your first city to get started with weather, time, and news updates!</p>
+            <p class="text-gray-500 mb-6">Add your first city to get started with weather and time updates!</p>
             <button onclick="document.getElementById('add-city-btn').click()" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors">
                 <i class="fas fa-plus mr-2"></i>Add Your First City
             </button>
@@ -172,13 +162,11 @@
                 <i class="fas fa-cloud-sun text-2xl text-blue-400"></i>
                 <span class="text-xl font-semibold">WeatherEndZone</span>
             </div>
-            <p class="text-gray-400 mb-4">Your one-stop destination for weather, time, and news updates</p>
+            <p class="text-gray-400 mb-4">Your one-stop destination for weather and time updates</p>
             <div class="flex justify-center space-x-6 text-sm text-gray-400">
-                <span>Powered by OpenWeatherMap</span>
+                <span>Powered by Open-Meteo</span>
                 <span>•</span>
                 <span>WorldTimeAPI</span>
-                <span>•</span>
-                <span>NewsAPI</span>
             </div>
         </div>
     </footer>

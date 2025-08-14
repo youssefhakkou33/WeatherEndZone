@@ -6,10 +6,6 @@ class WeatherApp {
         this.WEATHER_BASE_URL = 'https://api.open-meteo.com/v1';
         this.GEOCODING_BASE_URL = 'https://geocoding-api.open-meteo.com/v1';
         this.TIMEZONE_BASE_URL = 'https://worldtimeapi.org/api/timezone';
-        this.NEWS_BASE_URL = 'https://newsapi.org/v2';
-        
-        // NewsAPI key - your actual API key
-        this.NEWS_API_KEY = '0a6cabfd23d54a0bb9f30efb8919e69c';
         
         // App state
         this.cities = JSON.parse(localStorage.getItem('weatherapp_cities')) || [];
@@ -41,11 +37,6 @@ class WeatherApp {
 
         document.getElementById('clear-settings').addEventListener('click', () => {
             this.clearSettings();
-        });
-
-        document.getElementById('show-api-key').addEventListener('change', (e) => {
-            const input = document.getElementById('newsapi-input');
-            input.type = e.target.checked ? 'text' : 'password';
         });
 
         // Add city modal
@@ -100,52 +91,30 @@ class WeatherApp {
 
     openSettingsModal() {
         const modal = document.getElementById('settings-modal');
-        const input = document.getElementById('newsapi-input');
-        
-        // Load current API key
-        const currentKey = localStorage.getItem('newsapi_key') || '';
-        input.value = currentKey;
         
         modal.classList.remove('hidden');
         modal.classList.add('flex');
-        input.focus();
     }
 
     closeSettingsModal() {
         document.getElementById('settings-modal').classList.add('hidden');
         document.getElementById('settings-modal').classList.remove('flex');
         document.getElementById('show-api-key').checked = false;
-        document.getElementById('newsapi-input').type = 'password';
     }
 
     saveSettings() {
-        const apiKey = document.getElementById('newsapi-input').value.trim();
-        
-        if (apiKey) {
-            localStorage.setItem('newsapi_key', apiKey);
-            this.NEWS_API_KEY = apiKey;
-            alert('Settings saved! Your NewsAPI key has been updated.');
-        } else {
-            localStorage.removeItem('newsapi_key');
-            this.NEWS_API_KEY = '';
-            alert('Settings saved! NewsAPI key removed - will use mock news data.');
-        }
-        
+        alert('Settings saved!');
         this.closeSettingsModal();
         
-        // Refresh data to use new API key
+        // Refresh data
         if (this.cities.length > 0) {
             this.updateAllData();
         }
     }
 
     clearSettings() {
-        if (confirm('Are you sure you want to clear all settings? This will remove your NewsAPI key.')) {
-            localStorage.removeItem('newsapi_key');
-            localStorage.removeItem('newsapi_prompted');
-            this.NEWS_API_KEY = '';
-            document.getElementById('newsapi-input').value = '';
-            alert('Settings cleared! Will use mock news data.');
+        if (confirm('Are you sure you want to clear all settings?')) {
+            alert('Settings cleared!');
         }
     }
 
@@ -250,218 +219,15 @@ class WeatherApp {
         };
     }
 
-    async fetchNewsData(cityName, countryCode) {
-        try {
-            // Check if we're running on GitHub Pages or localhost
-            const isGitHubPages = window.location.hostname.includes('github.io');
-            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            
-            // Only try NewsAPI on localhost (due to CORS restrictions)
-            if (!isGitHubPages && isLocalhost && this.NEWS_API_KEY) {
-                const queries = [
-                    `${cityName} news`,
-                    `${cityName} weather`,
-                    `${countryCode} news`,
-                    'world news',
-                    'weather news'
-                ];
-                
-                // Try each query until we get results
-                for (const query of queries) {
-                    try {
-                        const response = await fetch(
-                            `${this.NEWS_BASE_URL}/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&pageSize=5&language=en&apiKey=${this.NEWS_API_KEY}`
-                        );
-                        
-                        if (response.ok) {
-                            const data = await response.json();
-                            if (data.articles && data.articles.length > 0) {
-                                // Filter out articles with null titles or descriptions and ensure English content
-                                const validArticles = data.articles.filter(article => 
-                                    article.title && 
-                                    article.description && 
-                                    article.title !== '[Removed]' &&
-                                    article.description !== '[Removed]' &&
-                                    this.isEnglishText(article.title) &&
-                                    this.isEnglishText(article.description)
-                                );
-                                
-                                if (validArticles.length > 0) {
-                                    return { articles: validArticles };
-                                }
-                            }
-                        }
-                    } catch (error) {
-                        console.log(`Failed to fetch news for query: ${query}`);
-                        continue;
-                    }
-                }
-            }
-            
-            // For GitHub Pages, try alternative free news sources
-            if (isGitHubPages) {
-                try {
-                    // Try RSS feeds or other CORS-enabled news sources
-                    const alternativeNews = await this.fetchAlternativeNews(cityName, countryCode);
-                    if (alternativeNews && alternativeNews.articles.length > 0) {
-                        return alternativeNews;
-                    }
-                } catch (error) {
-                    console.log('Alternative news sources failed:', error);
-                }
-            }
-            
-            // Fallback to enhanced mock news data
-            return this.getMockNews(cityName);
-            
-        } catch (error) {
-            console.error('News API error:', error);
-            return this.getMockNews(cityName);
-        }
-    }
-
-    async fetchAlternativeNews(cityName, countryCode) {
-        try {
-            // Use a CORS-enabled news aggregator or RSS service
-            // This is a placeholder for alternative news sources that work with CORS
-            
-            // Option 1: Try a news aggregator API that supports CORS
-            // Note: You may need to find and implement a CORS-enabled news API
-            
-            // Option 2: Use RSS feeds converted to JSON (if available)
-            // Many RSS-to-JSON services support CORS
-            
-            // For now, return enhanced mock data with more realistic content
-            return this.getEnhancedMockNews(cityName, countryCode);
-            
-        } catch (error) {
-            console.error('Alternative news fetch failed:', error);
-            return this.getEnhancedMockNews(cityName, countryCode);
-        }
-    }
-
-    getMockNews(cityName) {
-        const mockNews = [
-            {
-                title: `Weather Update for ${cityName}`,
-                description: 'Stay updated with the latest weather conditions and forecasts for your area. Check current temperature, humidity, and wind conditions.',
-                publishedAt: new Date().toISOString(),
-                source: { name: 'Weather Service' },
-                url: '#'
-            },
-            {
-                title: `${cityName} Local Development News`,
-                description: 'Latest updates on city infrastructure, development projects, and community initiatives in your area.',
-                publishedAt: new Date(Date.now() - 3600000).toISOString(),
-                source: { name: 'Local News' },
-                url: '#'
-            },
-            {
-                title: 'Global Weather Patterns',
-                description: 'Current climate trends and weather developments affecting regions worldwide. Stay informed about global weather patterns.',
-                publishedAt: new Date(Date.now() - 7200000).toISOString(),
-                source: { name: 'Climate News' },
-                url: '#'
-            },
-            {
-                title: 'Environmental Updates',
-                description: 'Environmental news and sustainability initiatives. Learn about local and global environmental developments.',
-                publishedAt: new Date(Date.now() - 10800000).toISOString(),
-                source: { name: 'Environmental Today' },
-                url: '#'
-            }
-        ];
-
-        return { articles: mockNews };
-    }
-
-    getEnhancedMockNews(cityName, countryCode) {
-        const currentDate = new Date();
-        const weatherTopics = [
-            'Climate Change Impact',
-            'Severe Weather Alert',
-            'Seasonal Weather Patterns',
-            'Temperature Records',
-            'Storm Tracking'
-        ];
-        
-        const generalTopics = [
-            'Infrastructure Development',
-            'Tourism Updates',
-            'Economic Growth',
-            'Technology Innovation',
-            'Cultural Events'
-        ];
-
-        const enhancedNews = [
-            {
-                title: `${weatherTopics[Math.floor(Math.random() * weatherTopics.length)]} Affects ${cityName} Region`,
-                description: `Meteorologists report significant weather developments in the ${cityName} area. Residents are advised to stay informed about changing conditions and prepare accordingly for the upcoming weather patterns.`,
-                publishedAt: new Date(currentDate.getTime() - Math.random() * 3600000).toISOString(),
-                source: { name: 'Weather Central' },
-                url: '#'
-            },
-            {
-                title: `${cityName} ${generalTopics[Math.floor(Math.random() * generalTopics.length)]} Initiative Announced`,
-                description: `Local authorities in ${cityName} have unveiled new initiatives aimed at improving community services and infrastructure. The program is expected to bring significant benefits to residents over the coming months.`,
-                publishedAt: new Date(currentDate.getTime() - Math.random() * 7200000).toISOString(),
-                source: { name: 'City Herald' },
-                url: '#'
-            },
-            {
-                title: `${countryCode} National Weather Service Issues Forecast Update`,
-                description: `The national weather service has released updated forecasts for the ${countryCode} region, including detailed predictions for temperature, precipitation, and wind patterns for the week ahead.`,
-                publishedAt: new Date(currentDate.getTime() - Math.random() * 10800000).toISOString(),
-                source: { name: 'National Weather' },
-                url: '#'
-            },
-            {
-                title: 'International Climate Conference Highlights Global Weather Trends',
-                description: 'Leading climatologists gather to discuss emerging weather patterns and their impact on communities worldwide. New research reveals important insights into climate adaptation strategies.',
-                publishedAt: new Date(currentDate.getTime() - Math.random() * 14400000).toISOString(),
-                source: { name: 'Climate Today' },
-                url: '#'
-            }
-        ];
-
-        return { articles: enhancedNews };
-    }
-
-    isEnglishText(text) {
-        // Simple check for English text - looks for common English words and Latin characters
-        if (!text || typeof text !== 'string') return false;
-        
-        // Check if text contains mostly Latin characters (English alphabet)
-        const latinCharacters = text.match(/[a-zA-Z\s.,!?;:'"()-]/g);
-        const totalCharacters = text.length;
-        
-        if (latinCharacters && totalCharacters > 0) {
-            const latinRatio = latinCharacters.length / totalCharacters;
-            
-            // If more than 70% Latin characters, likely English
-            if (latinRatio > 0.7) {
-                // Additional check for common English words
-                const commonEnglishWords = /\b(the|and|or|but|in|on|at|to|for|of|with|by|from|up|about|into|over|after|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|can|news|weather|city|local|today|yesterday|new|latest|update|report)\b/gi;
-                const englishMatches = text.match(commonEnglishWords);
-                
-                return englishMatches && englishMatches.length > 0;
-            }
-        }
-        
-        return false;
-    }
-
     async updateCityData(city) {
         try {
-            const [weatherData, timezoneData, newsData] = await Promise.all([
+            const [weatherData, timezoneData] = await Promise.all([
                 this.fetchWeatherData(city.lat, city.lon),
-                this.fetchTimezoneData(city.lat, city.lon),
-                this.fetchNewsData(city.name, city.country)
+                this.fetchTimezoneData(city.lat, city.lon)
             ]);
 
             city.weather = weatherData;
             city.timezone = timezoneData;
-            city.news = newsData;
             city.lastUpdated = new Date().toISOString();
 
         } catch (error) {
@@ -595,17 +361,6 @@ class WeatherApp {
                             ${this.renderForecast(city.weather)}
                         </div>
                     </div>
-
-                    <!-- News Section -->
-                    <div>
-                        <h3 class="text-lg font-semibold mb-3 flex items-center">
-                            <i class="fas fa-newspaper text-green-500 mr-2"></i>
-                            Local News
-                        </h3>
-                        <div class="space-y-3 max-h-60 overflow-y-auto scrollbar-thin">
-                            ${this.renderNews(city.news)}
-                        </div>
-                    </div>
                 </div>
             </div>
         `;
@@ -633,40 +388,6 @@ class WeatherApp {
                         ${description}
                     </span>
                     <span class="font-semibold text-gray-800">${maxTemp}°/${minTemp}°</span>
-                </div>
-            `;
-        }).join('');
-    }
-
-    renderNews(newsData) {
-        if (!newsData || !newsData.articles || newsData.articles.length === 0) {
-            return '<p class="text-gray-500">No news available</p>';
-        }
-
-        const isGitHubPages = window.location.hostname.includes('github.io');
-        const newsNote = isGitHubPages ? 
-            '<p class="text-xs text-blue-600 mb-2 italic">📱 GitHub Pages Demo - Enhanced mock news (Real news available in local development)</p>' : 
-            '';
-
-        return newsNote + newsData.articles.slice(0, 3).map(article => {
-            const publishedDate = new Date(article.publishedAt).toLocaleDateString();
-            const articleUrl = article.url && article.url !== '#' ? article.url : null;
-            
-            return `
-                <div class="border-l-4 border-green-500 pl-3 news-item">
-                    ${articleUrl ? `<a href="${articleUrl}" target="_blank" rel="noopener noreferrer" class="block hover:bg-gray-50 transition-colors">` : '<div>'}
-                        <h4 class="font-medium text-gray-800 text-sm leading-tight mb-1 ${articleUrl ? 'hover:text-blue-600' : ''}">
-                            ${article.title}
-                            ${articleUrl ? '<i class="fas fa-external-link-alt text-xs ml-1 text-gray-400"></i>' : ''}
-                        </h4>
-                        <p class="text-gray-600 text-xs mb-2 leading-relaxed">
-                            ${article.description}
-                        </p>
-                        <div class="flex justify-between items-center text-xs text-gray-500">
-                            <span>${article.source.name}</span>
-                            <span>${publishedDate}</span>
-                        </div>
-                    ${articleUrl ? '</a>' : '</div>'}
                 </div>
             `;
         }).join('');
