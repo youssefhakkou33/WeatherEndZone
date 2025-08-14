@@ -252,8 +252,12 @@ class WeatherApp {
 
     async fetchNewsData(cityName, countryCode) {
         try {
-            // Try to fetch real news data from NewsAPI using hardcoded key
-            if (this.NEWS_API_KEY) {
+            // Check if we're running on GitHub Pages or localhost
+            const isGitHubPages = window.location.hostname.includes('github.io');
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            
+            // Only try NewsAPI on localhost (due to CORS restrictions)
+            if (!isGitHubPages && isLocalhost && this.NEWS_API_KEY) {
                 const queries = [
                     `${cityName} news`,
                     `${cityName} weather`,
@@ -294,12 +298,45 @@ class WeatherApp {
                 }
             }
             
-            // Fallback to mock news data
+            // For GitHub Pages, try alternative free news sources
+            if (isGitHubPages) {
+                try {
+                    // Try RSS feeds or other CORS-enabled news sources
+                    const alternativeNews = await this.fetchAlternativeNews(cityName, countryCode);
+                    if (alternativeNews && alternativeNews.articles.length > 0) {
+                        return alternativeNews;
+                    }
+                } catch (error) {
+                    console.log('Alternative news sources failed:', error);
+                }
+            }
+            
+            // Fallback to enhanced mock news data
             return this.getMockNews(cityName);
             
         } catch (error) {
             console.error('News API error:', error);
             return this.getMockNews(cityName);
+        }
+    }
+
+    async fetchAlternativeNews(cityName, countryCode) {
+        try {
+            // Use a CORS-enabled news aggregator or RSS service
+            // This is a placeholder for alternative news sources that work with CORS
+            
+            // Option 1: Try a news aggregator API that supports CORS
+            // Note: You may need to find and implement a CORS-enabled news API
+            
+            // Option 2: Use RSS feeds converted to JSON (if available)
+            // Many RSS-to-JSON services support CORS
+            
+            // For now, return enhanced mock data with more realistic content
+            return this.getEnhancedMockNews(cityName, countryCode);
+            
+        } catch (error) {
+            console.error('Alternative news fetch failed:', error);
+            return this.getEnhancedMockNews(cityName, countryCode);
         }
     }
 
@@ -336,6 +373,58 @@ class WeatherApp {
         ];
 
         return { articles: mockNews };
+    }
+
+    getEnhancedMockNews(cityName, countryCode) {
+        const currentDate = new Date();
+        const weatherTopics = [
+            'Climate Change Impact',
+            'Severe Weather Alert',
+            'Seasonal Weather Patterns',
+            'Temperature Records',
+            'Storm Tracking'
+        ];
+        
+        const generalTopics = [
+            'Infrastructure Development',
+            'Tourism Updates',
+            'Economic Growth',
+            'Technology Innovation',
+            'Cultural Events'
+        ];
+
+        const enhancedNews = [
+            {
+                title: `${weatherTopics[Math.floor(Math.random() * weatherTopics.length)]} Affects ${cityName} Region`,
+                description: `Meteorologists report significant weather developments in the ${cityName} area. Residents are advised to stay informed about changing conditions and prepare accordingly for the upcoming weather patterns.`,
+                publishedAt: new Date(currentDate.getTime() - Math.random() * 3600000).toISOString(),
+                source: { name: 'Weather Central' },
+                url: '#'
+            },
+            {
+                title: `${cityName} ${generalTopics[Math.floor(Math.random() * generalTopics.length)]} Initiative Announced`,
+                description: `Local authorities in ${cityName} have unveiled new initiatives aimed at improving community services and infrastructure. The program is expected to bring significant benefits to residents over the coming months.`,
+                publishedAt: new Date(currentDate.getTime() - Math.random() * 7200000).toISOString(),
+                source: { name: 'City Herald' },
+                url: '#'
+            },
+            {
+                title: `${countryCode} National Weather Service Issues Forecast Update`,
+                description: `The national weather service has released updated forecasts for the ${countryCode} region, including detailed predictions for temperature, precipitation, and wind patterns for the week ahead.`,
+                publishedAt: new Date(currentDate.getTime() - Math.random() * 10800000).toISOString(),
+                source: { name: 'National Weather' },
+                url: '#'
+            },
+            {
+                title: 'International Climate Conference Highlights Global Weather Trends',
+                description: 'Leading climatologists gather to discuss emerging weather patterns and their impact on communities worldwide. New research reveals important insights into climate adaptation strategies.',
+                publishedAt: new Date(currentDate.getTime() - Math.random() * 14400000).toISOString(),
+                source: { name: 'Climate Today' },
+                url: '#'
+            }
+        ];
+
+        return { articles: enhancedNews };
     }
 
     isEnglishText(text) {
@@ -554,7 +643,12 @@ class WeatherApp {
             return '<p class="text-gray-500">No news available</p>';
         }
 
-        return newsData.articles.slice(0, 3).map(article => {
+        const isGitHubPages = window.location.hostname.includes('github.io');
+        const newsNote = isGitHubPages ? 
+            '<p class="text-xs text-blue-600 mb-2 italic">📱 GitHub Pages Demo - Enhanced mock news (Real news available in local development)</p>' : 
+            '';
+
+        return newsNote + newsData.articles.slice(0, 3).map(article => {
             const publishedDate = new Date(article.publishedAt).toLocaleDateString();
             const articleUrl = article.url && article.url !== '#' ? article.url : null;
             
