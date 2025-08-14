@@ -255,27 +255,31 @@ class WeatherApp {
             // Try to fetch real news data from NewsAPI using hardcoded key
             if (this.NEWS_API_KEY) {
                 const queries = [
-                    `${cityName}`,
-                    `${countryCode}`,
-                    'weather'
+                    `${cityName} news`,
+                    `${cityName} weather`,
+                    `${countryCode} news`,
+                    'world news',
+                    'weather news'
                 ];
                 
                 // Try each query until we get results
                 for (const query of queries) {
                     try {
                         const response = await fetch(
-                            `${this.NEWS_BASE_URL}/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&pageSize=5&apiKey=${this.NEWS_API_KEY}`
+                            `${this.NEWS_BASE_URL}/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&pageSize=5&language=en&apiKey=${this.NEWS_API_KEY}`
                         );
                         
                         if (response.ok) {
                             const data = await response.json();
                             if (data.articles && data.articles.length > 0) {
-                                // Filter out articles with null titles or descriptions
+                                // Filter out articles with null titles or descriptions and ensure English content
                                 const validArticles = data.articles.filter(article => 
                                     article.title && 
                                     article.description && 
                                     article.title !== '[Removed]' &&
-                                    article.description !== '[Removed]'
+                                    article.description !== '[Removed]' &&
+                                    this.isEnglishText(article.title) &&
+                                    this.isEnglishText(article.description)
                                 );
                                 
                                 if (validArticles.length > 0) {
@@ -332,6 +336,30 @@ class WeatherApp {
         ];
 
         return { articles: mockNews };
+    }
+
+    isEnglishText(text) {
+        // Simple check for English text - looks for common English words and Latin characters
+        if (!text || typeof text !== 'string') return false;
+        
+        // Check if text contains mostly Latin characters (English alphabet)
+        const latinCharacters = text.match(/[a-zA-Z\s.,!?;:'"()-]/g);
+        const totalCharacters = text.length;
+        
+        if (latinCharacters && totalCharacters > 0) {
+            const latinRatio = latinCharacters.length / totalCharacters;
+            
+            // If more than 70% Latin characters, likely English
+            if (latinRatio > 0.7) {
+                // Additional check for common English words
+                const commonEnglishWords = /\b(the|and|or|but|in|on|at|to|for|of|with|by|from|up|about|into|over|after|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|can|news|weather|city|local|today|yesterday|new|latest|update|report)\b/gi;
+                const englishMatches = text.match(commonEnglishWords);
+                
+                return englishMatches && englishMatches.length > 0;
+            }
+        }
+        
+        return false;
     }
 
     async updateCityData(city) {
