@@ -171,22 +171,22 @@ class WeatherApp {
         const cityName = document.getElementById('city-input').value.trim();
         if (!cityName) return;
 
-        this.showLoading(true);
+        this.showLoading();
         
         try {
             // Check if city already exists
             if (this.cities.some(city => city.name.toLowerCase() === cityName.toLowerCase())) {
                 alert('City already added!');
                 this.closeModal();
-                this.showLoading(false);
                 return;
             }
 
+            console.log('Adding city:', cityName);
+            
             // Get city coordinates
             const geoData = await this.fetchGeoData(cityName);
             if (!geoData || geoData.length === 0) {
                 alert('City not found! Please check the spelling.');
-                this.showLoading(false);
                 return;
             }
 
@@ -199,48 +199,95 @@ class WeatherApp {
                 state: geoData[0].admin1 || ''
             };
 
+            console.log('Created city object:', city);
+
             this.cities.push(city);
             this.saveCities();
-            await this.updateCityData(city);
+            
+            // Update city data with timeout to prevent hanging
+            const updatePromise = this.updateCityData(city);
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Request timeout')), 30000)
+            );
+            
+            await Promise.race([updatePromise, timeoutPromise]);
+            
             this.renderCities();
             this.closeModal();
             
+            console.log('Successfully added city:', city.name);
+            
         } catch (error) {
             console.error('Error adding city:', error);
-            alert('Error adding city. Please try again.');
+            
+            // Show user-friendly error message
+            if (error.message === 'Request timeout') {
+                alert('Request timed out. Please check your internet connection and try again.');
+            } else if (error.message.includes('API error')) {
+                alert('Weather service is temporarily unavailable. Please try again later.');
+            } else {
+                alert('Error adding city. Please try again.');
+            }
+            
+            // Remove the city if it was added but failed to load data
+            if (this.cities.length > 0) {
+                const lastCity = this.cities[this.cities.length - 1];
+                if (lastCity.name === cityName || !lastCity.weather) {
+                    this.cities.pop();
+                    this.saveCities();
+                }
+            }
+        } finally {
+            // Always hide loading, even if there's an error
+            this.hideLoading();
         }
-        
-        this.showLoading(false);
     }
 
     async fetchGeoData(cityName) {
-        const response = await fetch(
-            `${this.GEOCODING_BASE_URL}/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`
-        );
-        
-        if (!response.ok) {
-            throw new Error('Geocoding API error');
+        try {
+            console.log('Fetching geo data for:', cityName);
+            const response = await fetch(
+                `${this.GEOCODING_BASE_URL}/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`
+            );
+            
+            if (!response.ok) {
+                console.error('Geocoding API error:', response.status, response.statusText);
+                throw new Error(`Geocoding API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('Geo data received:', data);
+            return data.results || [];
+        } catch (error) {
+            console.error('Error in fetchGeoData:', error);
+            throw error;
         }
-        
-        const data = await response.json();
-        return data.results || [];
     }
 
     async fetchWeatherData(lat, lon) {
-        // Get current weather and forecast in one API call
-        const response = await fetch(
-            `${this.WEATHER_BASE_URL}/forecast?latitude=${lat}&longitude=${lon}` +
-            `&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m` +
-            `&hourly=temperature_2m,weather_code,precipitation_probability` +
-            `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant` +
-            `&timezone=auto&forecast_days=7`
-        );
-        
-        if (!response.ok) {
-            throw new Error('Weather API error');
+        try {
+            console.log('Fetching weather data for:', lat, lon);
+            // Get current weather and forecast in one API call
+            const response = await fetch(
+                `${this.WEATHER_BASE_URL}/forecast?latitude=${lat}&longitude=${lon}` +
+                `&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day` +
+                `&hourly=temperature_2m,weather_code,precipitation_probability` +
+                `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant` +
+                `&timezone=auto&forecast_days=7`
+            );
+            
+            if (!response.ok) {
+                console.error('Weather API error:', response.status, response.statusText);
+                throw new Error(`Weather API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('Weather data received for', lat, lon);
+            return data;
+        } catch (error) {
+            console.error('Error in fetchWeatherData:', error);
+            throw error;
         }
-        
-        return await response.json();
     }
 
     async fetchForecastData(lat, lon) {
@@ -251,17 +298,34 @@ class WeatherApp {
 
     async fetchTimezoneData(lat, lon) {
         try {
-            // Using a more reliable approach for timezone detection
-            const response = await fetch(`https://api.ipgeolocation.io/timezone?apiKey=free&lat=${lat}&long=${lon}`);
+            console.log('Fetching timezone data for:', lat, lon);
             
-            if (response.ok) {
-                return await response.json();
+            // Try WorldTimeAPI first (more reliable and free)
+            try {
+                const response = await fetch(`https://worldtimeapi.org/api/timezone`);
+                if (response.ok) {
+                    const timezones = await response.json();
+                    // Use a simple approach - just get the current timezone
+                    const fallbackResponse = await fetch(`https://worldtimeapi.org/api/ip`);
+                    if (fallbackResponse.ok) {
+                        const data = await fallbackResponse.json();
+                        console.log('Timezone data received via WorldTimeAPI');
+                        return {
+                            timezone: data.timezone,
+                            date_time: data.datetime
+                        };
+                    }
+                }
+            } catch (error) {
+                console.log('WorldTimeAPI failed, trying fallback');
             }
+            
         } catch (error) {
-            console.log('Using fallback timezone method');
+            console.log('Using browser timezone fallback');
         }
         
         // Fallback: use browser's timezone
+        console.log('Using browser timezone as fallback');
         return {
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             date_time: new Date().toISOString()
@@ -270,6 +334,8 @@ class WeatherApp {
 
     async updateCityData(city) {
         try {
+            console.log('Updating city data for:', city.name);
+            
             const [weatherData, timezoneData] = await Promise.all([
                 this.fetchWeatherData(city.lat, city.lon),
                 this.fetchTimezoneData(city.lat, city.lon)
@@ -278,26 +344,51 @@ class WeatherApp {
             city.weather = weatherData;
             city.timezone = timezoneData;
             city.lastUpdated = new Date().toISOString();
+            
+            console.log('Successfully updated city data for:', city.name);
 
         } catch (error) {
             console.error(`Error updating data for ${city.name}:`, error);
+            // Set error state for the city
+            city.error = error.message;
+            throw error; // Re-throw to be handled by calling function
         }
     }
 
     async updateAllData() {
         if (this.cities.length === 0) return;
         
-        this.showLoading(true);
+        this.showLoading();
         
         try {
-            await Promise.all(this.cities.map(city => this.updateCityData(city)));
+            console.log('Updating all city data...');
+            
+            // Add timeout to prevent hanging
+            const updatePromises = this.cities.map(city => {
+                const updatePromise = this.updateCityData(city);
+                const timeoutPromise = new Promise((resolve) => 
+                    setTimeout(() => {
+                        console.warn(`Timeout updating ${city.name}, using cached data`);
+                        resolve(); // Resolve instead of reject to continue with other cities
+                    }, 15000)
+                );
+                return Promise.race([updatePromise, timeoutPromise]);
+            });
+            
+            await Promise.allSettled(updatePromises);
+            
             this.saveCities();
             this.renderCities();
+            
+            console.log('Finished updating all cities');
+            
         } catch (error) {
             console.error('Error updating all data:', error);
+            // Still render cities with cached data
+            this.renderCities();
+        } finally {
+            this.hideLoading();
         }
-        
-        this.showLoading(false);
     }
 
     renderCities() {
@@ -324,6 +415,23 @@ class WeatherApp {
     }
 
     renderCityCard(city) {
+        // Show error state if there's an error
+        if (city.error && !city.weather) {
+            return `
+                <div class="glass-effect rounded-2xl p-6 bounce-in hover-lift shadow-xl border-2 border-red-200">
+                    <div class="text-center">
+                        <div class="text-6xl mb-4">⚠️</div>
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">${city.name}</h3>
+                        <p class="text-red-600 font-medium mb-4">Failed to load weather data</p>
+                        <button onclick="app.reloadCity(${city.id})" class="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-xl transition-all duration-300 hover-lift shadow-lg text-sm">
+                            <i class="fas fa-retry mr-2"></i>Try Again
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Show loading state if no weather data
         if (!city.weather) {
             return `
                 <div class="glass-effect rounded-2xl p-6 bounce-in hover-lift shadow-xl">
@@ -341,108 +449,124 @@ class WeatherApp {
             `;
         }
 
-        const currentTime = this.formatLocalTime(city.timezone);
-        const current = city.weather.current;
-        const weatherIcon = this.getWeatherIcon(current.weather_code, current.is_day);
-        const temp = Math.round(current.temperature_2m);
-        const feelsLike = Math.round(current.apparent_temperature);
-        
-        return `
-            <div class="glass-effect rounded-2xl overflow-hidden fade-in hover-lift shadow-xl border border-white/20">
-                <!-- City Header -->
-                <div class="gradient-animated text-white p-6 relative overflow-hidden">
-                    <div class="absolute inset-0 bg-black/10"></div>
-                    <div class="relative z-10">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="flex-1">
-                                <h2 class="text-xl md:text-2xl font-bold mb-1">${city.name}</h2>
-                                <p class="text-white/90 text-sm md:text-base">${city.state ? city.state + ', ' : ''}${city.country}</p>
-                                <div class="flex items-center space-x-2 mt-2">
-                                    <i class="fas fa-clock text-white/80 text-sm"></i>
-                                    <p class="text-white/90 text-sm font-medium">${currentTime}</p>
+        try {
+            const currentTime = this.formatLocalTime(city.timezone);
+            const current = city.weather.current;
+            const weatherIcon = this.getWeatherIcon(current.weather_code, current.is_day);
+            const temp = Math.round(current.temperature_2m);
+            const feelsLike = Math.round(current.apparent_temperature);
+            
+            return `
+                <div class="glass-effect rounded-2xl overflow-hidden fade-in hover-lift shadow-xl border border-white/20">
+                    <!-- City Header -->
+                    <div class="gradient-animated text-white p-6 relative overflow-hidden">
+                        <div class="absolute inset-0 bg-black/10"></div>
+                        <div class="relative z-10">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="flex-1">
+                                    <h2 class="text-xl md:text-2xl font-bold mb-1">${city.name}</h2>
+                                    <p class="text-white/90 text-sm md:text-base">${city.state ? city.state + ', ' : ''}${city.country}</p>
+                                    <div class="flex items-center space-x-2 mt-2">
+                                        <i class="fas fa-clock text-white/80 text-sm"></i>
+                                        <p class="text-white/90 text-sm font-medium">${currentTime}</p>
+                                    </div>
+                                </div>
+                                <button onclick="app.removeCity(${city.id})" class="text-white/80 hover:text-red-300 transition-all duration-200 hover:bg-white/10 rounded-full p-2 hover:scale-110">
+                                    <i class="fas fa-times text-lg"></i>
+                                </button>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-4">
+                                    <div class="text-5xl md:text-6xl weather-icon">${weatherIcon}</div>
+                                    <div>
+                                        <div class="text-3xl md:text-4xl font-bold">${temp}°C</div>
+                                        <div class="text-sm text-white/80">Feels like ${feelsLike}°C</div>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-lg font-semibold capitalize mb-1">
+                                        ${this.getWeatherDescription(current.weather_code)}
+                                    </div>
+                                    <div class="text-sm text-white/80">
+                                        <i class="fas fa-tint mr-1"></i>${current.relative_humidity_2m}% humidity
+                                    </div>
                                 </div>
                             </div>
-                            <button onclick="app.removeCity(${city.id})" class="text-white/80 hover:text-red-300 transition-all duration-200 hover:bg-white/10 rounded-full p-2 hover:scale-110">
-                                <i class="fas fa-times text-lg"></i>
-                            </button>
                         </div>
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-4">
-                                <div class="text-5xl md:text-6xl weather-icon">${weatherIcon}</div>
-                                <div>
-                                    <div class="text-3xl md:text-4xl font-bold">${temp}°C</div>
-                                    <div class="text-sm text-white/80">Feels like ${feelsLike}°C</div>
+                    </div>
+
+                    <!-- Weather Section -->
+                    <div class="p-6">
+                        <!-- Weather Details Grid -->
+                        <div class="grid grid-cols-2 gap-3 md:gap-4 mb-6">
+                            <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
+                                <div class="flex items-center space-x-3 mb-2">
+                                    <div class="bg-blue-500 rounded-full p-2">
+                                        <i class="fas fa-wind text-white text-sm"></i>
+                                    </div>
+                                    <span class="text-sm font-semibold text-gray-700">Wind Speed</span>
                                 </div>
+                                <div class="text-xl font-bold text-gray-800">${current.wind_speed_10m} km/h</div>
                             </div>
-                            <div class="text-right">
-                                <div class="text-lg font-semibold capitalize mb-1">
-                                    ${this.getWeatherDescription(current.weather_code)}
+                            <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
+                                <div class="flex items-center space-x-3 mb-2">
+                                    <div class="bg-purple-500 rounded-full p-2">
+                                        <i class="fas fa-cloud text-white text-sm"></i>
+                                    </div>
+                                    <span class="text-sm font-semibold text-gray-700">Cloud Cover</span>
                                 </div>
-                                <div class="text-sm text-white/80">
-                                    <i class="fas fa-tint mr-1"></i>${current.relative_humidity_2m}% humidity
+                                <div class="text-xl font-bold text-gray-800">${current.cloud_cover}%</div>
+                            </div>
+                            <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
+                                <div class="flex items-center space-x-3 mb-2">
+                                    <div class="bg-green-500 rounded-full p-2">
+                                        <i class="fas fa-thermometer-half text-white text-sm"></i>
+                                    </div>
+                                    <span class="text-sm font-semibold text-gray-700">Pressure</span>
                                 </div>
+                                <div class="text-xl font-bold text-gray-800">${Math.round(current.pressure_msl)} hPa</div>
+                            </div>
+                            <div class="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
+                                <div class="flex items-center space-x-3 mb-2">
+                                    <div class="bg-orange-500 rounded-full p-2">
+                                        <i class="fas fa-eye text-white text-sm"></i>
+                                    </div>
+                                    <span class="text-sm font-semibold text-gray-700">Wind Gusts</span>
+                                </div>
+                                <div class="text-xl font-bold text-gray-800">${current.wind_gusts_10m} km/h</div>
+                            </div>
+                        </div>
+
+                        <!-- 7-Day Forecast -->
+                        <div class="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 md:p-6">
+                            <h3 class="text-lg md:text-xl font-bold mb-4 flex items-center text-gray-800">
+                                <div class="bg-blue-500 rounded-full p-2 mr-3">
+                                    <i class="fas fa-calendar-alt text-white text-sm"></i>
+                                </div>
+                                7-Day Forecast
+                            </h3>
+                            <div class="space-y-3 max-h-80 overflow-y-auto scrollbar-thin">
+                                ${this.renderForecast(city.weather)}
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <!-- Weather Section -->
-                <div class="p-6">
-                    <!-- Weather Details Grid -->
-                    <div class="grid grid-cols-2 gap-3 md:gap-4 mb-6">
-                        <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
-                            <div class="flex items-center space-x-3 mb-2">
-                                <div class="bg-blue-500 rounded-full p-2">
-                                    <i class="fas fa-wind text-white text-sm"></i>
-                                </div>
-                                <span class="text-sm font-semibold text-gray-700">Wind Speed</span>
-                            </div>
-                            <div class="text-xl font-bold text-gray-800">${current.wind_speed_10m} km/h</div>
-                        </div>
-                        <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
-                            <div class="flex items-center space-x-3 mb-2">
-                                <div class="bg-purple-500 rounded-full p-2">
-                                    <i class="fas fa-cloud text-white text-sm"></i>
-                                </div>
-                                <span class="text-sm font-semibold text-gray-700">Cloud Cover</span>
-                            </div>
-                            <div class="text-xl font-bold text-gray-800">${current.cloud_cover}%</div>
-                        </div>
-                        <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
-                            <div class="flex items-center space-x-3 mb-2">
-                                <div class="bg-green-500 rounded-full p-2">
-                                    <i class="fas fa-thermometer-half text-white text-sm"></i>
-                                </div>
-                                <span class="text-sm font-semibold text-gray-700">Pressure</span>
-                            </div>
-                            <div class="text-xl font-bold text-gray-800">${Math.round(current.pressure_msl)} hPa</div>
-                        </div>
-                        <div class="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
-                            <div class="flex items-center space-x-3 mb-2">
-                                <div class="bg-orange-500 rounded-full p-2">
-                                    <i class="fas fa-eye text-white text-sm"></i>
-                                </div>
-                                <span class="text-sm font-semibold text-gray-700">Wind Gusts</span>
-                            </div>
-                            <div class="text-xl font-bold text-gray-800">${current.wind_gusts_10m} km/h</div>
-                        </div>
-                    </div>
-
-                    <!-- 7-Day Forecast -->
-                    <div class="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 md:p-6">
-                        <h3 class="text-lg md:text-xl font-bold mb-4 flex items-center text-gray-800">
-                            <div class="bg-blue-500 rounded-full p-2 mr-3">
-                                <i class="fas fa-calendar-alt text-white text-sm"></i>
-                            </div>
-                            7-Day Forecast
-                        </h3>
-                        <div class="space-y-3 max-h-80 overflow-y-auto scrollbar-thin">
-                            ${this.renderForecast(city.weather)}
-                        </div>
+            `;
+        } catch (error) {
+            console.error('Error rendering city card:', error);
+            return `
+                <div class="glass-effect rounded-2xl p-6 bounce-in hover-lift shadow-xl border-2 border-red-200">
+                    <div class="text-center">
+                        <div class="text-6xl mb-4">⚠️</div>
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">${city.name}</h3>
+                        <p class="text-red-600 font-medium mb-4">Error displaying weather data</p>
+                        <button onclick="app.removeCity(${city.id})" class="bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white px-4 py-2 rounded-xl transition-all duration-300 hover-lift shadow-lg text-sm">
+                            <i class="fas fa-trash mr-2"></i>Remove
+                        </button>
                     </div>
                 </div>
-            </div>
-        `;
+            `;
+        }
     }
 
     renderForecast(weatherData) {
@@ -639,6 +763,29 @@ class WeatherApp {
             minute: '2-digit',
             hour12: true
         });
+    }
+
+    async reloadCity(cityId) {
+        const city = this.cities.find(c => c.id === cityId);
+        if (!city) return;
+        
+        console.log('Reloading city:', city.name);
+        
+        // Clear error state
+        delete city.error;
+        
+        // Re-render to show loading state
+        this.renderCities();
+        
+        try {
+            await this.updateCityData(city);
+            this.saveCities();
+            this.renderCities();
+        } catch (error) {
+            console.error('Error reloading city:', error);
+            city.error = error.message;
+            this.renderCities();
+        }
     }
 
     removeCity(cityId) {
