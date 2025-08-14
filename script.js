@@ -1,4 +1,5 @@
 // WeatherEndZone - Main JavaScript File
+// Version 2.0 - News section removed for better performance
 
 class WeatherApp {
     constructor() {
